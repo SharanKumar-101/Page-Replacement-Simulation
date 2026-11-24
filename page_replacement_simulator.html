@@ -1,0 +1,444 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Page Replacement Simulator</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#161a22;--mut:#5b6472;--line:#d6dbe5;--acc:#3b5bdb;--ok:#1f9d55;--bad:#d6336c;--slot:#eef1f8;--d:.65s;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e111c;--card:#171b2a;--ink:#e8ebf4;--mut:#9aa3b5;--line:#2c3350;--acc:#6c8cff;--ok:#3ddc84;--bad:#ff5c93;--slot:#101422;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e111c;--card:#171b2a;--ink:#e8ebf4;--mut:#9aa3b5;--line:#2c3350;--acc:#6c8cff;--ok:#3ddc84;--bad:#ff5c93;--slot:#101422;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;padding:16px;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1200px;margin:auto}h1{margin:0 0 2px;font-size:22px}.sub{color:var(--mut);margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 13px;border-radius:10px}
+button:hover{border-color:var(--acc)}button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+input[type=text],input[type=number]{font:inherit;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.right-col{display:flex;flex-direction:column}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 6px}
+.strip{display:flex;gap:6px;overflow-x:auto;position:relative;padding:6px 4px}
+.rc{flex:none;width:40px;text-align:center}.ti{font-size:10px;color:var(--mut)}
+.rv{height:40px;border-radius:10px;display:grid;place-items:center;border:2px solid var(--line);font:700 16px ui-monospace,monospace;background:var(--card);transition:.3s}
+.rm{display:block;height:13px;font-size:10px;font-weight:700}
+.rc.cur .rv{background:var(--acc);color:#fff;border-color:var(--acc);transform:scale(1.12)}
+.rc.h .rv{border-color:var(--ok)}.rc.f .rv{border-color:var(--bad)}.rc.h .rm{color:var(--ok)}.rc.f .rm{color:var(--bad)}
+.frames{display:flex;flex-direction:column;gap:10px;margin:6px 0 14px}.row{display:flex;align-items:center;gap:12px}
+.fl{width:62px;font-size:12px;color:var(--mut)}.meta{font-size:13px;color:var(--mut)}
+.box{width:64px;height:64px;flex:none;border-radius:14px;border:2px dashed var(--line);background:var(--slot);display:grid;place-items:center;font:700 26px ui-monospace,monospace;transition:.3s}
+.box.full{border:2px solid var(--acc);background:var(--card)}
+.box.pop{animation:pop .55s}.box.hitp{animation:hitp .7s}.box.evict{border-color:var(--bad);animation:ev var(--d) forwards}
+@keyframes pop{0%{transform:scale(.5)}60%{transform:scale(1.15);box-shadow:0 0 0 9px rgba(59,91,219,.25)}100%{transform:scale(1)}}
+@keyframes hitp{40%{transform:scale(1.1);border-color:var(--ok);box-shadow:0 0 0 10px rgba(31,157,85,.3)}}
+@keyframes ev{30%{background:rgba(214,51,108,.3);transform:scale(1.1) rotate(-5deg)}100%{transform:scale(.15) rotate(25deg);opacity:0}}
+.tok{position:fixed;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font:700 20px ui-monospace,monospace;color:#fff;z-index:50;pointer-events:none;transition:transform var(--d) cubic-bezier(.5,0,.2,1);box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.tok.ok{background:var(--ok)}.tok.bad{background:var(--bad)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;min-height:38px}
+.chip{padding:6px 10px;border-radius:10px;border:1px solid var(--line);font:700 15px ui-monospace,monospace;animation:fi .4s}.chip small{font-weight:400;color:var(--mut);margin-left:4px}
+.chip.nx{border-color:var(--bad);color:var(--bad)}@keyframes fi{from{opacity:0;transform:translateY(6px)}}
+.stats{display:flex;gap:10px;margin-top:12px}.st{flex:1;text-align:center;border:1px solid var(--line);border-radius:12px;padding:8px}.st b{display:block;font-size:22px}.st span{font-size:12px;color:var(--mut)}
+.log{max-height:290px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.en{border-left:4px solid;padding:9px 12px;border-radius:8px;background:var(--slot);font-size:14.5px;line-height:1.5;animation:fi .4s}
+.en.h{border-color:var(--ok)}.en.f{border-color:var(--bad)}.en.last{outline:2px solid var(--acc)}.en.sum{border-color:var(--acc)}
+.eh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;font-size:12.5px;margin-bottom:4px}
+.bd{padding:2px 9px;border-radius:99px;background:var(--line);white-space:nowrap}
+.br{display:flex;align-items:center;gap:8px;margin:5px 0}.br span{width:62px}.bt{flex:1;height:14px;border-radius:7px;background:var(--line);overflow:hidden}.bf{height:100%;background:var(--acc);transition:width .5s}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:5px 7px;text-align:center;border-bottom:1px solid var(--line)}td:first-child,th:first-child{text-align:left}
+.up{color:var(--bad);font-weight:700}.cur{background:var(--slot)}
+
+/* Feature #5: Interactive Belady Frame Table Enhancements */
+#tbl th[data-fc],#tbl td[data-fc]{cursor:pointer;transition:background .15s,color .15s;border-radius:6px}
+#tbl th[data-fc]:hover,#tbl td[data-fc]:hover{background:var(--slot);outline:1px solid var(--acc)}
+#tbl th.cur{color:var(--acc);font-weight:800;border-bottom:2px solid var(--acc)}
+#tbl td.cur{font-weight:700}
+.belady-bar{margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--slot);border:1px solid var(--line);font-size:12.5px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.belady-bar.warn{border-color:var(--bad);background:rgba(214,51,108,.08)}
+.belady-pill{padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;border:1px solid var(--bad);color:var(--bad);background:var(--card);cursor:pointer}
+.belady-pill:hover{background:var(--bad);color:#fff}
+
+/* Feature #1: Live Synchronized Algorithm Code & Tracer Panel */
+.code-hdr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px}
+.code-tools{display:flex;align-items:center;gap:4px}
+.code-tools button{padding:3px 8px;font-size:11.5px;border-radius:7px}
+.watch-bar{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;padding:7px 8px;border-radius:10px;background:var(--slot);border:1px solid var(--line);font:12px ui-monospace,monospace}
+.wchip{padding:2px 7px;border-radius:6px;background:var(--card);border:1px solid var(--line);font-size:11.5px}
+.wchip b{color:var(--acc)}
+.wchip.ok b{color:var(--ok)}
+.wchip.bad b{color:var(--bad)}
+.code-box{background:var(--slot);border:1px solid var(--line);border-radius:12px;padding:8px 0;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.5;max-height:460px;overflow-y:auto}
+.cline{display:flex;align-items:baseline;padding:1.5px 10px;border-left:3px solid transparent;white-space:pre;transition:background .2s,border-color .2s}
+.cln{width:24px;flex:none;color:var(--mut);font-size:11px;user-select:none;text-align:right;margin-right:10px}
+.ctxt{flex:1}
+.cline.act-hit{background:rgba(31,157,85,.14);border-left-color:var(--ok);font-weight:600}
+.cline.act-free{background:rgba(59,91,219,.14);border-left-color:var(--acc);font-weight:600}
+.cline.act-evict{background:rgba(214,51,108,.14);border-left-color:var(--bad);font-weight:600}
+.cline.act-base{background:rgba(108,140,255,.08);border-left-color:var(--mut)}
+.kw{color:var(--acc);font-weight:700}
+.cm{color:var(--mut);font-style:italic}
+.code-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;font-size:11.5px;color:var(--mut);padding-top:6px;border-top:1px solid var(--line)}
+.code-meta span b{color:var(--ink)}
+
+@media(max-width:900px){.log{max-height:300px}.code-box{max-height:340px}}
+</style></head><body><div class="wrap">
+<h1>Page Replacement Simulator</h1><p class="sub">FIFO · LRU (counter and stack) · Optimal. Watch every page fly into a frame, and see exactly why a victim is evicted.</p>
+<div class="card"><div class="bar" id="tabs"><button data-a="FIFO">FIFO</button><button data-a="LRU">LRU</button><button data-a="OPT">Optimal (OPT / MIN)</button>
+<span id="vr" class="bar" style="display:none;margin-left:8px"><span style="color:var(--mut)">LRU via:</span><button data-v="counter">Counters</button><button data-v="stack">Stack</button></span></div>
+<div class="bar" style="margin-top:10px"><input type="text" id="ref" size="34" aria-label="Reference string"><label>Frames <input type="number" id="nf" min="1" max="7" value="3" style="width:64px"></label>
+<button id="load">Load</button><button id="p1">Notes example (20 refs)</button><button id="p2">Belady example</button></div>
+<div class="bar" style="margin-top:10px"><button id="prev">◀ Prev</button><button id="play" class="on">▶ Play</button><button id="next">Next ▶</button><button id="rst">Reset</button>
+<label style="color:var(--mut)">Speed <input type="range" id="sp" min="0.5" max="3" step="0.25" value="1"></label></div>
+<p id="desc" style="margin:10px 0 0;color:var(--mut)"></p></div>
+<div class="grid"><div>
+<div class="card"><p class="lbl">Reference string (incoming page requests)</p><div class="strip" id="strip"></div>
+<p class="lbl" style="margin-top:12px">Memory frames</p><div class="frames" id="frames"></div>
+<p class="lbl" id="olbl"></p><div class="chips" id="chips"></div>
+<div class="stats"><div class="st"><b id="sf">0</b><span>Page faults</span></div><div class="st"><b id="sh">0</b><span>Hits</span></div><div class="st"><b id="sr">–</b><span>Hit ratio</span></div></div></div>
+<div class="card"><p class="lbl">Compare all algorithms (current string and frames)</p><div id="cmp"></div>
+<p class="lbl" style="margin-top:12px">Faults vs number of frames <span style="text-transform:none;letter-spacing:0">(click any column to switch frames · red = Belady’s anomaly)</span></p><div style="overflow-x:auto"><table id="tbl"></table></div><div id="beladyNote"></div></div></div>
+<div class="right-col">
+  <div class="card"><p class="lbl">Step-by-step explanation</p><div class="log" id="log"></div></div>
+  <div class="card">
+    <div class="code-hdr">
+      <p class="lbl" style="margin:0" id="clbl">Algorithm implementation (live trace)</p>
+      <div class="code-tools">
+        <button id="langPseudo" class="on" title="Show textbook pseudocode">Pseudocode</button>
+        <button id="langC" title="Show C implementation">C Code</button>
+        <button id="fontDown" title="Decrease code font size">A-</button>
+        <button id="fontUp" title="Increase code font size">A+</button>
+        <button id="copyCode" title="Copy code to clipboard">Copy</button>
+      </div>
+    </div>
+    <div class="watch-bar" id="watchBar"></div>
+    <div class="code-box" id="codeBox"></div>
+    <div class="code-meta" id="codeMeta"></div>
+  </div>
+</div></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const PRE='7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1',BEL='1 2 3 4 1 2 5 1 2 3 4 5';
+const DESC={FIFO:'FIFO: replace the page that has been in memory the longest (the head of the queue). Simple, but can evict a page that is still heavily used.',LRU:'LRU: replace the page that has not been used for the longest time. It looks backward in time, as an approximation of OPT.',OPT:'Optimal: replace the page that will not be used for the longest time in the future. It needs knowledge of the future, so it is only a benchmark.'};
+const OL={FIFO:'FIFO queue · HEAD (oldest, next victim) → TAIL (newest)',stack:'LRU stack · TOP (most recent) → BOTTOM (LRU, next victim)',counter:'Time-of-use counters · smallest (LRU, next victim) → largest',OPT:'Next use in future · soonest → furthest (next victim)'};
+
+// =========================================================================
+// FEATURE #1: SYNCHRONIZED ALGORITHM CODE TEMPLATES (PSEUDOCODE & C)
+// =========================================================================
+const CODE_TEMPLATES = {
+  FIFO: {
+    title: 'FIFO Page Replacement',
+    meta: { time: 'O(1) per ref', space: 'O(F) frames + queue', belady: 'Yes (Non-Stack)' },
+    pseudo: [
+      { t: 'for each page p at time t in ReferenceString:', role: 'base' },
+      { t: '  if p is already in Frames[0..N-1]:', role: 'hit' },
+      { t: '    record HIT (queue order unchanged)', role: 'hit' },
+      { t: '  else:  // PAGE FAULT', role: 'fault' },
+      { t: '    faults ← faults + 1', role: 'fault' },
+      { t: '    if free frame slot exists:', role: 'free' },
+      { t: '      Frames[slot] ← p;  Queue.enqueue(p)', role: 'free' },
+      { t: '    else:  // RAM full -> evict oldest', role: 'evict' },
+      { t: '      victim ← Queue.dequeue()  // Head', role: 'evict' },
+      { t: '      replace victim with p;  Queue.enqueue(p)', role: 'evict' }
+    ],
+    c: [
+      { t: 'void fifo(int refs[], int len, int N) {', role: 'base' },
+      { t: '  if (contains(frames, N, p)) {', role: 'hit' },
+      { t: '    hits++; // FIFO ignores access time', role: 'hit' },
+      { t: '  } else { // PAGE FAULT', role: 'fault' },
+      { t: '    faults++;', role: 'fault' },
+      { t: '    if (has_free_slot(frames, &slot)) {', role: 'free' },
+      { t: '      frames[slot] = p; queue[tail++] = p;', role: 'free' },
+      { t: '    } else {', role: 'evict' },
+      { t: '      int victim = queue[head++];', role: 'evict' },
+      { t: '      frames[index_of(victim)] = p; queue[tail++] = p;', role: 'evict' },
+      { t: '    } } }' }
+    ]
+  },
+  counter: {
+    title: 'LRU (Time-of-Use Counters)',
+    meta: { time: 'O(F) search/fault', space: 'O(F) clock table', belady: 'No (Stack Algo)' },
+    pseudo: [
+      { t: 'for each page p at clock tick t:', role: 'base' },
+      { t: '  if p is in Frames[0..N-1]:', role: 'hit' },
+      { t: '    last_used[p] ← t   // refresh clock', role: 'hit' },
+      { t: '  else:  // PAGE FAULT', role: 'fault' },
+      { t: '    faults ← faults + 1', role: 'fault' },
+      { t: '    if free frame slot exists:', role: 'free' },
+      { t: '      Frames[slot] ← p;  last_used[p] ← t', role: 'free' },
+      { t: '    else:  // find minimum counter', role: 'evict' },
+      { t: '      victim ← argmin(last_used[y] for y in Frames)', role: 'evict' },
+      { t: '      replace victim with p;  last_used[p] ← t', role: 'evict' }
+    ],
+    c: [
+      { t: 'void lru_counter(int refs[], int len, int N) {', role: 'base' },
+      { t: '  if (contains(frames, N, p)) {', role: 'hit' },
+      { t: '    last_used[p] = ++clock; // HIT', role: 'hit' },
+      { t: '  } else { // PAGE FAULT', role: 'fault' },
+      { t: '    faults++;', role: 'fault' },
+      { t: '    if (has_free_slot(frames, &slot)) {', role: 'free' },
+      { t: '      frames[slot] = p; last_used[p] = ++clock;', role: 'free' },
+      { t: '    } else {', role: 'evict' },
+      { t: '      int victim = find_min_clock(frames, last_used);', role: 'evict' },
+      { t: '      frames[index_of(victim)] = p; last_used[p] = ++clock;', role: 'evict' },
+      { t: '    } } }' }
+    ]
+  },
+  stack: {
+    title: 'LRU (Doubly-Linked Stack)',
+    meta: { time: 'O(1) via hash+DLL', space: 'O(F) doubly-linked', belady: 'No (Stack Algo)' },
+    pseudo: [
+      { t: 'for each page p at time t:', role: 'base' },
+      { t: '  if p is in Frames[0..N-1]:  // HIT', role: 'hit' },
+      { t: '    remove p from Stack;  push p to TOP (MRU)', role: 'hit' },
+      { t: '  else:  // PAGE FAULT', role: 'fault' },
+      { t: '    faults ← faults + 1', role: 'fault' },
+      { t: '    if free frame slot exists:', role: 'free' },
+      { t: '      Frames[slot] ← p;  push p to TOP (MRU)', role: 'free' },
+      { t: '    else:  // evict BOTTOM of stack', role: 'evict' },
+      { t: '      victim ← Stack.pop_bottom()  // LRU', role: 'evict' },
+      { t: '      replace victim with p;  push p to TOP (MRU)', role: 'evict' }
+    ],
+    c: [
+      { t: 'void lru_stack(int refs[], int len, int N) {', role: 'base' },
+      { t: '  if (contains(frames, N, p)) {', role: 'hit' },
+      { t: '    dll_move_to_head(&stack, p); // MRU', role: 'hit' },
+      { t: '  } else { // PAGE FAULT', role: 'fault' },
+      { t: '    faults++;', role: 'fault' },
+      { t: '    if (has_free_slot(frames, &slot)) {', role: 'free' },
+      { t: '      frames[slot] = p; dll_push_head(&stack, p);', role: 'free' },
+      { t: '    } else {', role: 'evict' },
+      { t: '      int victim = dll_pop_tail(&stack); // LRU', role: 'evict' },
+      { t: '      frames[index_of(victim)] = p; dll_push_head(&stack, p);', role: 'evict' },
+      { t: '    } } }' }
+    ]
+  },
+  OPT: {
+    title: 'Optimal (OPT / MIN)',
+    meta: { time: 'O(F·L) lookahead', space: 'O(F) + future tape', belady: 'No (Stack Algo)' },
+    pseudo: [
+      { t: 'for each page p at index k in ReferenceString:', role: 'base' },
+      { t: '  if p is in Frames[0..N-1]:', role: 'hit' },
+      { t: '    record HIT (no state update needed)', role: 'hit' },
+      { t: '  else:  // PAGE FAULT', role: 'fault' },
+      { t: '    faults ← faults + 1', role: 'fault' },
+      { t: '    if free frame slot exists:', role: 'free' },
+      { t: '      Frames[slot] ← p', role: 'free' },
+      { t: '    else:  // scan future refs[k+1..end]', role: 'evict' },
+      { t: '      victim ← page in Frames with farthest next_use', role: 'evict' },
+      { t: '      replace victim with p', role: 'evict' }
+    ],
+    c: [
+      { t: 'void optimal(int refs[], int len, int N) {', role: 'base' },
+      { t: '  if (contains(frames, N, p)) {', role: 'hit' },
+      { t: '    hits++; // Optimal benchmark', role: 'hit' },
+      { t: '  } else { // PAGE FAULT', role: 'fault' },
+      { t: '    faults++;', role: 'fault' },
+      { t: '    if (has_free_slot(frames, &slot)) {', role: 'free' },
+      { t: '      frames[slot] = p;', role: 'free' },
+      { t: '    } else {', role: 'evict' },
+      { t: '      int victim = farthest_future_use(frames, refs, k + 1);', role: 'evict' },
+      { t: '      frames[index_of(victim)] = p;', role: 'evict' },
+      { t: '    } } }' }
+    ]
+  }
+};
+
+let algo='FIFO',variant='counter',refs=[],n=3,steps=[],i=-1,playing=false,busy=false,gen=0,spd=1;
+let codeLang='pseudo', codeFont=12.5;
+
+function sim(a,v,R,N){const sl=Array(N).fill(null),out=[],load={},last={};let q=[],stk=[],f=0;
+R.forEach((p,k)=>{const t=k+1,hit=sl.includes(p);let slot,vic=null,why='';
+if(hit){slot=sl.indexOf(p);why=`Page <b>${p}</b> is already in Frame ${slot} → <b>HIT</b>. No disk access needed. `+(a==='FIFO'?'FIFO ignores usage, so the queue stays unchanged.':a==='LRU'?(v==='counter'?`Its time-of-use counter is refreshed to ${t}.`:`Page ${p} is pulled out of the stack and placed back on top (most recent).`):'Optimal only looks at the future, so there is nothing to update.');}
+else{f++;slot=sl.indexOf(null);
+if(slot<0){let vp,x;
+if(a==='FIFO'){vp=q[0];x=`FIFO looks only at <b>arrival order</b>. Queue (oldest → newest): ${q.join(' → ')}. Page <b>${vp}</b> arrived at step ${load[vp]}, the oldest, so it goes first even if it was used recently.`}
+else if(a==='LRU'){if(v==='counter'){vp=sl.reduce((m,y)=>last[y]<last[m]?y:m);x=`Time-of-use counters: ${sl.map(y=>y+'@'+last[y]).join(', ')}. The smallest counter belongs to page <b>${vp}</b> (last used at step ${last[vp]}), so it is the <b>least recently used</b>.`}
+else{vp=stk[stk.length-1];x=`Stack (top → bottom): ${stk.join(', ')}. The page at the bottom, <b>${vp}</b>, was touched longest ago, so it is the <b>LRU</b> page.`}}
+else{const nx=sl.map(y=>R.indexOf(y,k+1));let b=-1;vp=sl[0];sl.forEach((y,j)=>{const d=nx[j]<0?1e9:nx[j];if(d>b){b=d;vp=y}});
+x=`Looking ahead in the future string: ${sl.map((y,j)=>y+' → '+(nx[j]<0?'never again':'step '+(nx[j]+1))).join('; ')}. Page <b>${vp}</b> is ${b===1e9?'never needed again':'needed furthest away (step '+(b+1)+')'}, so replace it.`}
+slot=sl.indexOf(vp);vic=vp;why=`<b>PAGE FAULT</b>: page ${p} isn’t in memory and all ${N} frames are full. `+x+` Victim ${vp} is removed from Frame ${slot}; page ${p} takes its place.`;
+q=q.filter(y=>y!==vic);stk=stk.filter(y=>y!==vic)}
+else why=`<b>PAGE FAULT</b>: page ${p} isn’t in memory, but Frame ${slot} is free, so it is loaded there with no eviction.`+(a==='FIFO'?' It joins the tail of the queue.':'');
+sl[slot]=p;load[p]=t;q.push(p)}
+last[p]=t;stk=stk.filter(y=>y!==p);stk.unshift(p);
+const nxt=y=>R.indexOf(y,k+1),live=sl.filter(y=>y!=null),d=y=>nxt(y)<0?1e9:nxt(y);
+const meta=sl.map(y=>y==null?'':a==='FIFO'?'loaded @'+load[y]:a==='LRU'?'last used @'+last[y]:(nxt(y)<0?'never used again':'next use @'+(nxt(y)+1)));
+let ord,ni=0;
+if(a==='FIFO')ord=q.map(y=>[y,'']);
+else if(a==='LRU'&&v==='stack'){ord=stk.map(y=>[y,'']);ni=ord.length-1}
+else if(a==='LRU')ord=live.slice().sort((y,z)=>last[y]-last[z]).map(y=>[y,'@'+last[y]]);
+else{ord=live.slice().sort((y,z)=>d(y)-d(z)).map(y=>[y,nxt(y)<0?'never':'@'+(nxt(y)+1)]);ni=ord.length-1}
+out.push({t,p,hit,slot,vic,why,fr:sl.slice(),meta,ord,ni,f,h:t-f})});
+return{steps:out,faults:f}}
+function ak(){return algo==='LRU'?variant:algo==='OPT'?'OPT':'FIFO'}
+
+function escapeHtml(str){
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function syntaxHighlight(line){
+  let s = escapeHtml(line);
+  s = s.replace(/(\/\/.*)$/, '<span class="cm">$1</span>');
+  s = s.replace(/\b(for|each|in|if|else|void|int|return|while)\b/g, '<span class="kw">$1</span>');
+  return s;
+}
+
+function renderCodePanel(x){
+  const key = ak();
+  const tpl = CODE_TEMPLATES[key];
+  const s = x >= 0 ? steps[x] : null;
+  $('clbl').textContent = `${tpl.title} · Live Trace`;
+
+  // Live variable watch chips
+  if(!s){
+    $('watchBar').innerHTML = `
+      <span class="wchip">t: <b>0</b></span>
+      <span class="wchip">page: <b>—</b></span>
+      <span class="wchip">frames: <b>${n}</b></span>
+      <span class="wchip">status: <b>IDLE</b></span>
+    `;
+  } else {
+    const branchClass = s.hit ? 'ok' : (s.vic != null ? 'bad' : '');
+    const branchLabel = s.hit ? 'HIT' : (s.vic != null ? 'FAULT + EVICT' : 'FAULT (FREE)');
+    const structLabel = key === 'FIFO'
+      ? `queue: [${s.ord.map(o=>o[0]).join('→')}]`
+      : key === 'stack'
+        ? `stack: [${s.ord.map(o=>o[0]).join(',')}]`
+        : key === 'counter'
+          ? `clocks: [${s.ord.map(o=>o[0]+o[1]).join(' ')}]`
+          : `next: [${s.ord.map(o=>o[0]+o[1]).join(' ')}]`;
+    $('watchBar').innerHTML = `
+      <span class="wchip">t: <b>${s.t}</b></span>
+      <span class="wchip">p: <b>${s.p}</b></span>
+      <span class="wchip">slot: <b>F${s.slot}</b></span>
+      ${s.vic != null ? `<span class="wchip bad">victim: <b>${s.vic}</b></span>` : ''}
+      <span class="wchip ${branchClass}">branch: <b>${branchLabel}</b></span>
+      <span class="wchip"><b>${structLabel}</b></span>
+    `;
+  }
+
+  const lines = tpl[codeLang];
+  const activeBranch = !s ? 'base' : (s.hit ? 'hit' : (s.vic != null ? 'evict' : 'free'));
+  $('codeBox').style.fontSize = codeFont + 'px';
+  $('codeBox').innerHTML = lines.map((ln, idx) => {
+    let cls = 'cline';
+    if(!s && ln.role === 'base') cls += ' act-base';
+    else if(s){
+      if(ln.role === 'base') cls += ' act-base';
+      else if(activeBranch === 'hit' && ln.role === 'hit') cls += ' act-hit';
+      else if(activeBranch === 'free' && (ln.role === 'fault' || ln.role === 'free')) cls += ' act-free';
+      else if(activeBranch === 'evict' && (ln.role === 'fault' || ln.role === 'evict')) cls += ' act-evict';
+    }
+    return `<div class="${cls}"><span class="cln">${idx + 1}</span><span class="ctxt">${syntaxHighlight(ln.t)}</span></div>`;
+  }).join('');
+
+  $('codeMeta').innerHTML = `
+    <span>Time: <b>${tpl.meta.time}</b></span>
+    <span>Space: <b>${tpl.meta.space}</b></span>
+    <span>Belady Anomaly: <b>${tpl.meta.belady}</b></span>
+  `;
+}
+
+function renderRef(c){refs.forEach((p,k)=>{const e=$('r'+k);e.className='rc'+(k===c?' cur':k<c?(steps[k].hit?' h':' f'):'');e.lastChild.textContent=k<c?(steps[k].hit?'H':'F'):''});
+if(c>=0){const s=$('strip'),e=$('r'+c);s.scrollLeft=e.offsetLeft-s.clientWidth/2+e.offsetWidth/2}}
+function renderState(x){const s=x>=0?steps[x]:null;
+for(let k=0;k<n;k++){const v=s?s.fr[k]:null,b=$('b'+k);b.className='box'+(v!=null?' full':'');b.textContent=v!=null?v:'';$('m'+k).textContent=s&&v!=null?s.meta[k]:''}
+$('chips').innerHTML=s?s.ord.map((o,j)=>`<span class="chip${j===s.ni?' nx':''}">${o[0]}<small>${o[1]}</small></span>`).join(''):'';
+$('sf').textContent=s?s.f:0;$('sh').textContent=s?s.h:0;$('sr').textContent=s?Math.round(s.h/s.t*100)+'%':'–'}
+function renderLog(x){const L=$('log');let h='';
+if(x<0)h='<div class="en">Press <b>Next ▶</b> or <b>Play</b>. Each request will fly into memory and the reason for every decision appears here.</div>';
+for(let k=0;k<=x;k++){const s=steps[k];h+=`<div class="en ${s.hit?'h':'f'}${k===x?' last':''}"><div class="eh"><span>Step ${s.t} · page ${s.p}</span><span class="bd">${s.hit?'HIT':s.vic!=null?'FAULT + EVICT':'FAULT'}</span></div>${s.why}</div>`}
+if(x===steps.length-1&&!busy){const s=steps[x];h+=`<div class="en sum"><div class="eh"><span>Finished</span></div><b>${s.f}</b> page faults and <b>${s.h}</b> hits out of ${s.t} requests (hit ratio ${Math.round(s.h/s.t*100)}%).</div>`}
+L.innerHTML=h;L.scrollTop=L.scrollHeight}
+function jump(x){i=x;renderRef(x);renderState(x);renderLog(x);renderCodePanel(x)}
+function fly(a,b,txt,cls,cb){const A=a.getBoundingClientRect(),B=b.getBoundingClientRect(),e=document.createElement('div');e.className='tok '+cls;e.textContent=txt;
+e.style.left=A.left+A.width/2-22+'px';e.style.top=A.top+A.height/2-22+'px';document.body.appendChild(e);
+requestAnimationFrame(()=>requestAnimationFrame(()=>{e.style.transform=`translate(${B.left+B.width/2-A.left-A.width/2}px,${B.top+B.height/2-A.top-A.height/2}px) scale(1.3)`}));
+setTimeout(()=>{e.remove();cb()},650/spd+60)}
+function next(cb){if(busy||i>=steps.length-1){cb&&cb();return}
+busy=true;const g=gen,prev=i;i++;const s=steps[i],box=$('b'+s.slot);
+renderState(prev);renderRef(i);renderLog(i);renderCodePanel(i);
+const land=()=>{if(g!==gen)return;busy=false;renderState(i);box.classList.add(s.hit?'hitp':'pop');if(i===steps.length-1)renderLog(i);cb&&cb()};
+const go=()=>fly($('r'+i).children[1],box,s.p,s.hit?'ok':'bad',land);
+if(s.vic!=null){box.classList.add('evict');$('m'+s.slot).textContent='evicting '+s.vic+'…';
+setTimeout(()=>{if(g!==gen)return;box.textContent='';box.className='box';go()},650/spd+120)}else go()}
+function upd(){$('play').textContent=playing?'⏸ Pause':'▶ Play'}
+function play(){if(playing){playing=false;upd();return}if(i>=steps.length-1&&!busy)jump(-1);playing=true;upd();
+(function loop(){if(!playing)return;if(i>=steps.length-1&&!busy){playing=false;upd();return}next(()=>setTimeout(loop,450/spd))})()}
+
+function setFramesAndRun(fc){
+  $('nf').value = fc;
+  setup();
+}
+
+function setup(){playing=false;busy=false;gen++;upd();document.querySelectorAll('.tok').forEach(e=>e.remove());
+refs=$('ref').value.trim().split(/[\s,]+/).filter(x=>/^\d+$/.test(x)).map(Number).slice(0,40);
+if(!refs.length){refs=PRE.split(' ').map(Number);$('ref').value=PRE}
+n=Math.min(7,Math.max(1,+$('nf').value||3));$('nf').value=n;
+steps=sim(algo==='LRU'?'LRU':algo,variant,refs,n).steps;
+document.querySelectorAll('#tabs [data-a]').forEach(b=>b.className=b.dataset.a===algo?'on':'');
+document.querySelectorAll('#tabs [data-v]').forEach(b=>b.className=b.dataset.v===variant?'on':'');
+$('vr').style.display=algo==='LRU'?'flex':'none';$('desc').textContent=DESC[algo];$('olbl').textContent=OL[ak()];
+$('strip').innerHTML=refs.map((p,k)=>`<div class="rc" id="r${k}"><span class="ti">${k+1}</span><div class="rv">${p}</div><span class="rm"></span></div>`).join('');
+$('frames').innerHTML=Array.from({length:n},(_,k)=>`<div class="row"><span class="fl">Frame ${k}</span><div class="box" id="b${k}"></div><span class="meta" id="m${k}"></span></div>`).join('');
+const A=[['FIFO','FIFO'],['LRU','LRU'],['Optimal','OPT']];
+$('cmp').innerHTML=A.map(([nm,k])=>{const r=sim(k,'counter',refs,n).faults;return`<div class="br"><span>${nm}</span><div class="bt"><div class="bf" style="width:${r/refs.length*100}%"></div></div><b>${r}</b></div>`}).join('');
+
+// Feature #5: Interactive Belady's Anomaly Frame Table + Anomaly Status Bar
+let anomalyInfo = null;
+let th='<tr><th>Frames</th>'+[1,2,3,4,5,6,7].map(c=>`<th data-fc="${c}" title="Switch to ${c} frames" class="${c===n?'cur':''}">${c}</th>`).join('')+'</tr>';
+A.forEach(([nm,k])=>{
+  let pv=-1;
+  th+=`<tr><td>${nm}</td>`+[1,2,3,4,5,6,7].map(c=>{
+    const r=sim(k,'counter',refs,c).faults,u=pv>=0&&r>pv;
+    if(u && k==='FIFO' && !anomalyInfo){
+      anomalyInfo = { fromC: c-1, fromF: pv, toC: c, toF: r };
+    }
+    pv=r;
+    return`<td data-fc="${c}" title="Click to set ${c} frames (${nm}: ${r} faults)" class="${(u?'up ':'')+(c===n?'cur':'')}">${r}</td>`;
+  }).join('')+'</tr>';
+});
+$('tbl').innerHTML=th;
+document.querySelectorAll('#tbl [data-fc]').forEach(el=>{
+  el.onclick=()=>setFramesAndRun(+el.dataset.fc);
+});
+
+const bn = $('beladyNote');
+if(anomalyInfo){
+  const targetC = n === anomalyInfo.toC ? anomalyInfo.fromC : anomalyInfo.toC;
+  const targetLabel = n === anomalyInfo.toC ? `Back to ${anomalyInfo.fromC} frames (${anomalyInfo.fromF} faults)` : `Jump to ${anomalyInfo.toC} frames (${anomalyInfo.toF} faults)`;
+  bn.className = 'belady-bar warn';
+  bn.innerHTML = `<span><b>Belady’s Anomaly on FIFO:</b> ${anomalyInfo.fromC} frames (${anomalyInfo.fromF} faults) → ${anomalyInfo.toC} frames (${anomalyInfo.toF} faults)</span><button type="button" class="belady-pill" id="jumpBeladyBtn">${targetLabel}</button>`;
+  $('jumpBeladyBtn').onclick = () => setFramesAndRun(targetC);
+} else {
+  bn.className = 'belady-bar';
+  bn.innerHTML = `<span><b>No Belady spike</b> on this reference string · LRU &amp; Optimal are stack algorithms (faults never increase with more frames).</span>`;
+}
+
+jump(-1)}
+
+// Code Panel Controls
+$('langPseudo').onclick = () => { codeLang='pseudo'; $('langPseudo').className='on'; $('langC').className=''; renderCodePanel(i); };
+$('langC').onclick = () => { codeLang='c'; $('langC').className='on'; $('langPseudo').className=''; renderCodePanel(i); };
+$('fontDown').onclick = () => { codeFont = Math.max(10.5, codeFont - 1); renderCodePanel(i); };
+$('fontUp').onclick = () => { codeFont = Math.min(16, codeFont + 1); renderCodePanel(i); };
+$('copyCode').onclick = () => {
+  const txt = CODE_TEMPLATES[ak()][codeLang].map(l => l.t).join('\n');
+  const ta = document.createElement('textarea');
+  ta.value = txt;
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+  const btn = $('copyCode');
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+};
+
+document.querySelectorAll('#tabs [data-a]').forEach(b=>b.onclick=()=>{algo=b.dataset.a;setup()});
+document.querySelectorAll('#tabs [data-v]').forEach(b=>b.onclick=()=>{variant=b.dataset.v;setup()});
+$('load').onclick=setup;$('ref').onkeydown=e=>{if(e.key==='Enter')setup()};
+$('p1').onclick=()=>{$('ref').value=PRE;$('nf').value=3;setup()};
+$('p2').onclick=()=>{$('ref').value=BEL;$('nf').value=3;algo='FIFO';setup()};
+$('next').onclick=()=>next();$('prev').onclick=()=>{if(!busy&&i>=0){playing=false;upd();jump(i-1)}};
+$('play').onclick=play;$('rst').onclick=()=>{playing=false;busy=false;gen++;upd();document.querySelectorAll('.tok').forEach(e=>e.remove());jump(-1)};
+$('sp').oninput=e=>{spd=+e.target.value;document.documentElement.style.setProperty('--d',.65/spd+'s')};
+document.onkeydown=e=>{if(e.target.tagName==='INPUT')return;if(e.key==='ArrowRight')next();if(e.key==='ArrowLeft')$('prev').click();if(e.key===' '){e.preventDefault();play()}};
+$('ref').value=PRE;setup();
+</script></body></html>
